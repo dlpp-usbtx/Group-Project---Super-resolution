@@ -101,15 +101,10 @@ def process_upload():
 
       if file and allowed_file(file.filename):
         try:
-          # Read the uploaded file
-          # image_stream = io.BytesIO(file.read())
-          # original_image = Image.open(image_stream)
-
           upscale_factor = 3
 
           image_stream = io.BytesIO(file.read())
           img = Image.open(image_stream)
-          # img = load_img(file.filename)
 
           lowres_input = get_lowres_image(img, upscale_factor)
           w = lowres_input.size[0] * upscale_factor
@@ -117,8 +112,9 @@ def process_upload():
           highres_img = img.resize((w, h))
 
           modl = tf.keras.models.load_model('Models/image_upscale_model/my_model.keras', custom_objects={"DepthToSpaceLayer": DepthToSpaceLayer})
-          # processed_image = model_upscaling(modl, img)
-
+          
+          
+          # Upscale the image multiple times
           num_iterations = 5
           processed_image = upscale_multiple_times(modl, img, num_iterations)
 
