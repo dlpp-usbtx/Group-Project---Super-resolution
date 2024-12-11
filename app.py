@@ -1,4 +1,5 @@
 import io
+import os
 import PIL
 import cv2
 import base64
@@ -15,12 +16,7 @@ app = Flask(__name__)
 app.secret_key = '24TNT1_nhom1'  # Replace with a secure secret key
 
 
-def model_upscaling(model, imgs, max_input_size=(1200, 1200)):
-    img = imgs
-    if img.size[0] > max_input_size[0] or img.size[1] > max_input_size[1]:
-        img.thumbnail(max_input_size)
-
-    # Convert the image to grayscale
+def upscale_image(model, img):
     """Predict the result based on input image and restore the image as RGB."""
     ycbcr = img.convert("YCbCr")
     y, cb, cr = ycbcr.split()
@@ -51,16 +47,16 @@ def get_lowres_image(img, upscale_factor):
         PIL.Image.BICUBIC,
     )
 
-def upscale_multiple_times(model, img, num_iterations, max_input_size=(1200, 1200)):
+def upscale_multiple_times(model, img, num_iterations, upscale_factor=3):
     """
     Upscale an image multiple times using a model.
-
+    
     Args:
         model: The trained model used for upscaling.
         img: The initial PIL Image to upscale.
         num_iterations: Number of times to upscale.
-        max_input_size: Maximum allowed input size for each upscale step.
-
+        upscale_factor: The factor by which to upscale (default is 3).
+    
     Returns:
         A PIL Image that has been upscaled multiple times.
     """
@@ -68,8 +64,9 @@ def upscale_multiple_times(model, img, num_iterations, max_input_size=(1200, 120
 
     for i in range(num_iterations):
         print(f"Upscaling iteration {i + 1}/{num_iterations}")
-        # Perform upscaling
-        current_image = model_upscaling(model, current_image, max_input_size)
+        # Upscale the image
+        lowres_input = get_lowres_image(current_image, upscale_factor)
+        current_image = upscale_image(model, lowres_input)
 
     return current_image
 
@@ -101,44 +98,44 @@ def process_upload():
 
       if file and allowed_file(file.filename):
         try:
+          # Tạo thư mục lưu ảnh nếu chưa tồn tại
+          UPLOAD_FOLDER = 'static/uploads'
+          if not os.path.exists(UPLOAD_FOLDER):
+              os.makedirs(UPLOAD_FOLDER)
+
           upscale_factor = 3
 
-          image_stream = io.BytesIO(file.read())
-          img = Image.open(image_stream)
+          img = Image.open(io.BytesIO(file.read()))
+          # lowres_input = get_lowres_image(img, upscale_factor)
 
-          lowres_input = get_lowres_image(img, upscale_factor)
-          w = lowres_input.size[0] * upscale_factor
-          h = lowres_input.size[1] * upscale_factor
-          highres_img = img.resize((w, h))
+          # Load model
+          modl = tf.keras.models.load_model(
+              'Models/image_upscale_model/my_model.keras',
+              custom_objects={"DepthToSpaceLayer": DepthToSpaceLayer}
+          )
 
-          modl = tf.keras.models.load_model('Models/image_upscale_model/my_model.keras', custom_objects={"DepthToSpaceLayer": DepthToSpaceLayer})
-          
-          
-          # Upscale the image multiple times
-          num_iterations = 5
-          processed_image = upscale_multiple_times(modl, img, num_iterations)
+          # Upscale ảnh
+          num_iterations = 1
+          prediction = upscale_multiple_times(modl, img, num_iterations, upscale_factor)
 
-          # Convert images to base64 for display
-          original_image_stream = io.BytesIO()
-          processed_image_stream = io.BytesIO()
+          # Lưu ảnh vào thư mục
+          original_output_path = os.path.join(UPLOAD_FOLDER, f"original_{file.filename}")
+          prediction_output_path = os.path.join(UPLOAD_FOLDER, f"prediction_{file.filename}")
 
-          original_image_rgb = img.convert('RGB')
-          processed_image_rgb = processed_image.convert('RGB')
+          img.save(original_output_path)
+          prediction.save(prediction_output_path)
 
-          original_image_rgb.save(original_image_stream, format='JPEG')
-          processed_image_rgb.save(processed_image_stream, format='JPEG')
-
-          original_image_url = 'data:image/jpeg;base64,' + base64.b64encode(original_image_stream.getvalue()).decode()
-          processed_image_url = 'data:image/jpeg;base64,' + base64.b64encode(processed_image_stream.getvalue()).decode()
+          # Truyền URL ảnh vào giao diện
+          original_image_url = url_for('static', filename=f"uploads/original_{file.filename}")
+          prediction_image_url = url_for('static', filename=f"uploads/prediction_{file.filename}")
 
           return render_template(
               'index.html',
-              durl='#',
               original_image_url=original_image_url,
-              processed_image_url=processed_image_url,
-              original_image=img,  # Pass the actual images
-              processed_image=processed_image
-          )
+              prediction_image_url=prediction_image_url,
+              original_image=img,  # Để hiển thị độ phân giải gốc
+              processed_image=prediction  # Để hiển thị độ phân giải upscale
+                )
         except Exception as e:
           flash(f'Error processing the image: {str(e)}', 'danger')
           return redirect(request.url)
