@@ -110,7 +110,7 @@ def process_upload():
 
           # Load model
           modl = tf.keras.models.load_model(
-              'Models/image_upscale_model/my_model.keras',
+              '../Models/image_upscale_model/my_model.keras',
               custom_objects={"DepthToSpaceLayer": DepthToSpaceLayer}
           )
 
