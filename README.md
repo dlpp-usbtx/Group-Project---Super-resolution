@@ -62,4 +62,7 @@ python app.py
 - **ALLOWED_EXTENSIONS:** Set of allowed file extensions for image uploads (`{'png', 'jpg', 'jpeg'}`).
 - **app.secret_key:** Flask secret key for session management. Replace with a secure secret key.
 
+## Report  
+- [Group-Project---Super-resolution](Group-Project---Super-resolution) 
+
 ---
